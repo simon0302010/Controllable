@@ -2,7 +2,9 @@ import cv2
 import time
 import mediapipe as mp
 import numpy as np
+import pyautogui
 from mediapipe.framework.formats import landmark_pb2
+from screeninfo import get_monitors
 
 class Landmarker():
     def __init__(self) -> None:
@@ -60,6 +62,7 @@ def draw_landmarks(rgb_image, detection_result: mp.tasks.vision.HandLandmarkerRe
 
 def main():
     cap = cv2.VideoCapture(0)
+    fps = cap.get(cv2.CAP_PROP_FPS)
 
     hand_landmarker = Landmarker()
 
@@ -67,6 +70,8 @@ def main():
         ret, frame = cap.read()
         frame = cv2.flip(frame, 1)
         height, width, _ = frame.shape
+        monitor = get_monitors()[0]
+        monitor_width, monitor_height = monitor.width, monitor.height
         
         hand_landmarker.detect_async(frame)
         #frame = draw_landmarks(frame, hand_landmarker.result)
@@ -76,7 +81,10 @@ def main():
                 norm_x, norm_y = pointer_tip.x, pointer_tip.y
                 pixel_x = int(norm_x * width)
                 pixel_y = int(norm_y * height)
+                monitor_x = int(norm_x * monitor_width)
+                monitor_y = int(norm_y * monitor_height)
                 cv2.circle(frame, (pixel_x, pixel_y), 10, (0, 255, 0), -1)
+                pyautogui.moveTo(monitor_x, monitor_y, 1 / fps)
         except (AttributeError, IndexError):
             pass
         
