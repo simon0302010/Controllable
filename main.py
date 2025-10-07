@@ -1,12 +1,14 @@
 import cv2
 import sys
 import math
-import loess
 import mediapipe as mp
-import numpy as np
 import pyautogui
 from mediapipe.framework.formats import landmark_pb2
 from screeninfo import get_monitors
+from mouse_interpolator import MouseInterpolator
+import time
+from pynput.mouse import Button, Controller
+
 
 class Landmarker():
     def __init__(self) -> None:
@@ -54,7 +56,9 @@ def main():
     monitor = get_monitors()[0]
 
     hand_landmarker = Landmarker()
-    mouse_down = False
+    mouse_interpolator = MouseInterpolator()
+    pynput_mouse = Controller()
+    last_click = time.time()
     
     x_array = []
     y_array = []
@@ -76,14 +80,11 @@ def main():
                 pointer_tip = hand_landmarker.result.hand_landmarks[0][8]
                 thumb_tip = hand_landmarker.result.hand_landmarks[0][4]
                 
-                distance = math.sqrt((thumb_tip.x - pointer_tip.x)**2 + (thumb_tip.y - pointer_tip.y)**2 + (thumb_tip.z - pointer_tip.z)**2)
-                should_click = distance < 0.06
-                if should_click and not mouse_down:
-                    pyautogui.mouseDown()
-                    mouse_down = True
-                elif not should_click and mouse_down:
-                    pyautogui.mouseUp()
-                    mouse_down = False
+                distance = math.dist(
+                    [thumb_tip.x, thumb_tip.y, thumb_tip.z],
+                    [pointer_tip.x, pointer_tip.y, pointer_tip.z]
+                )
+                should_click = distance < 0.08 and (time.time() - last_click) > 0.5
                 
                 norm_x, norm_y = pointer_tip.x, pointer_tip.y
                 mapped_x = map_coordinate(pointer_tip.x)
@@ -102,14 +103,28 @@ def main():
                 
                 cv2.line(frame, (pixel_x, pixel_y), (thumb_pixel_x, thumb_pixel_y), (0, 0, 255), 2)
                 
-                if len(x_array) > 30:
-                    recent_x = x_array[-min(1000, len(x_array)):]
-                    recent_y = y_array[-min(1000, len(y_array)):]
-                    x_smooth = loess.loess_1d(np.arange(len(recent_x)), np.array(recent_x), frac=0.1)
-                    y_smooth = loess.loess_1d(np.arange(len(recent_y)), np.array(recent_y), frac=0.1)
-                    monitor_x = int(x_smooth[-1])
-                    monitor_y = int(y_smooth[-1])
-                pyautogui.moveTo(monitor_x, monitor_y)
+                if len(x_array) >= 5:
+                    recent_x = x_array[-min(10, len(x_array)):]
+                    recent_y = y_array[-min(10, len(y_array)):]
+                    
+                    # the lower the smoother
+                    alpha = 0.3
+                    smoothed_x = recent_x[0]
+                    smoothed_y = recent_y[0]
+                    for i in range(1, len(recent_x)):
+                        smoothed_x = alpha * recent_x[i] + (1 - alpha) * smoothed_x
+                        smoothed_y = alpha * recent_y[i] + (1 - alpha) * smoothed_y
+                    
+                    monitor_x = int(smoothed_x)
+                    monitor_y = int(smoothed_y)
+                    
+                mouse_interpolator.move_to(monitor_x, monitor_y)
+                try:
+                    if should_click:
+                        pynput_mouse.click(Button.left, 1)
+                        last_click = time.time()
+                except RuntimeError:
+                    pass
         except (AttributeError, IndexError):
             pass
         
