@@ -62,7 +62,8 @@ def main():
     x_array = []
     y_array = []
 
-    start_time = time.time()
+    calibration_time = 0.0
+    last_hand_time = time.time()
     should_run = False
 
     touching = []
@@ -77,12 +78,12 @@ def main():
         except AttributeError:
             print("No camera detected.")
             sys.exit(1)
-            
         monitor_width, monitor_height = monitor.width, monitor.height
-        
         hand_landmarker.detect_async(frame)
+        hand_detected = False
         try:
             if hand_landmarker.result and hand_landmarker.result.hand_landmarks and len(hand_landmarker.result.hand_landmarks[0]) == 21:
+                hand_detected = True
                 pointer_tip = hand_landmarker.result.hand_landmarks[0][8]
                 thumb_tip = hand_landmarker.result.hand_landmarks[0][4]
                                 
@@ -133,12 +134,23 @@ def main():
                     mouse_interpolator.move_to(monitor_x, monitor_y)
                     try:
                         if should_click:
-                            pynput_mouse.click(Button.left, 1)
+                            #pynput_mouse.click(Button.left, 1)
                             last_click = time.time()
+                        if distance <= click_distance:
+                            pynput_mouse.press(Button.left)
+                        else:
+                            pynput_mouse.release(Button.left)
                     except RuntimeError:
                         pass
                 else:
-                    elapsed_time = time.time() - start_time
+                    # Only increment calibration_time if hand is detected
+                    if hand_detected:
+                        now = time.time()
+                        calibration_time += now - last_hand_time
+                        last_hand_time = now
+                    else:
+                        last_hand_time = time.time()
+                    elapsed_time = calibration_time
                     if elapsed_time <= 5:
                         countdown = int(6 - elapsed_time)
                         print(f"\rBring your thumb tip and pointer tip close (but not touching) in {countdown} seconds", end='', flush=True)
@@ -157,9 +169,7 @@ def main():
                         touching_threshold = np.percentile(touching, 75) if touching else 0.05
                         not_touching_threshold = np.percentile(not_touching, 25) if not_touching else 0.15
                         click_distance = (touching_threshold + not_touching_threshold) / 2
-                        
                         click_distance = max(0.05, min(0.15, click_distance))
-                        
                         print(f"\n\nCalibration complete! Click Distance: {click_distance:.4f}")
                         print(f"Touching range: {touching_threshold:.4f}, Not touching range: {not_touching_threshold:.4f}")
                         should_run = True
