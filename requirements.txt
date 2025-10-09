@@ -1,5 +1,6 @@
-opencv-python>=4.7.0.72
+opencv-python-headless
 mediapipe>=0.10.5
 screeninfo
 pyautogui
 loess
+PyQt5
