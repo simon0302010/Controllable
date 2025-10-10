@@ -1,29 +1,47 @@
-from PyQt5.QtCore import QObject, pyqtSignal, QThread
-import cv2
-import sys
 import math
-import mediapipe as mp
-from screeninfo import get_monitors
-from mouse_interpolator import MouseInterpolator
+import sys
 import time
-from pynput.mouse import Button, Controller
+import threading
+
+import cv2
 import numpy as np
+from PyQt5.QtCore import pyqtSignal, QThread, pyqtSlot
+from pynput.mouse import Button, Controller
+from screeninfo import get_monitors
+
 import landmarkers
+from mouse_interpolator import MouseInterpolator
+
+
+def map_coordinate(coord, old_min=0.2, old_max=0.8):
+    coord = max(old_min, min(old_max, coord))
+    return (coord - old_min) / (old_max - old_min)
+
 
 class VideoThread(QThread):
     change_pixmap_signal = pyqtSignal(np.ndarray)
-    
+    trigger_calibration = pyqtSignal()
+
     def __init__(self) -> None:
         super().__init__()
+        self.trigger_calibration.connect(self.calibrate)
         self._run_flag = True
-
-    def map_coordinate(self, coord, old_min=0.2, old_max=0.8):
-        coord = max(old_min, min(old_max, coord))
-        return (coord - old_min) / (old_max - old_min)
+        self.calibrating = False
+        self.click_distance = None
+        self.cap = cv2.VideoCapture(0)
+        self.calibration_flag = threading.Event()
 
     def run(self):
-        cap = cv2.VideoCapture(0)
-        click_distance = self.calibrate(cap)
+        while not self.calibrating:
+            ret, frame = self.cap.read()
+            if not ret:
+                continue
+            frame = cv2.flip(frame, 1)
+            self.change_pixmap_signal.emit(frame)
+
+        # waits until calibration is finished
+        self.calibration_flag.wait()
+
         monitor = get_monitors()[0]
 
         hand_landmarker = landmarkers.Landmarker()
@@ -42,7 +60,7 @@ class VideoThread(QThread):
         is_dragging = False
         
         while self._run_flag:
-            ret, frame = cap.read()
+            ret, frame = self.cap.read()
             if not ret:
                 continue
             frame = cv2.flip(frame, 1)
@@ -63,10 +81,10 @@ class VideoThread(QThread):
                     [pointer_tip.x, pointer_tip.y]
                 )
                 
-                if distance <= click_distance and not click_since:
+                if distance <= self.click_distance and not click_since:
                     click_since = time.time()
 
-                if distance <= click_distance:
+                if distance <= self.click_distance:
                     last_touch = time.time()
                     if click_since and time.time() - click_since >= 0.2:
                         action = "drag"
@@ -86,17 +104,17 @@ class VideoThread(QThread):
                 print(action)
                 
                 if time.time() - last_touch < 0.1:
-                    distance = click_distance
-                should_click = distance <= click_distance and (time.time() - last_click) > 0.5
+                    distance = self.click_distance
+                should_click = distance <= self.click_distance and (time.time() - last_click) > 0.5
                 
-                if distance <= click_distance:
+                if distance <= self.click_distance:
                     color = (0, 255, 0)
                 else:
                     color = (0, 0, 255)
                 
                 norm_x, norm_y = pointer_tip.x, pointer_tip.y
-                mapped_x = self.map_coordinate(pointer_tip.x)
-                mapped_y = self.map_coordinate(pointer_tip.y)
+                mapped_x = map_coordinate(pointer_tip.x)
+                mapped_y = map_coordinate(pointer_tip.y)
                 pixel_x = int(norm_x * width)
                 pixel_y = int(norm_y * height)
                 monitor_x = int(mapped_x * monitor_width)
@@ -115,7 +133,7 @@ class VideoThread(QThread):
                     recent_x = x_array[-min(10, len(x_array)):]
                     recent_y = y_array[-min(10, len(y_array)):]
                     
-                    # the lower the smoother
+                    # the lower, the smoother
                     alpha = 0.3
                     smoothed_x = recent_x[0]
                     smoothed_y = recent_y[0]
@@ -146,13 +164,16 @@ class VideoThread(QThread):
             self.change_pixmap_signal.emit(frame)
         
         hand_landmarker.close()
-        cap.release()
-        
+
     def stop(self):
         self._run_flag = False
         self.wait()
-        
-    def calibrate(self, cap):
+
+    @pyqtSlot()
+    def calibrate(self):
+        self.calibrating = True
+        time.sleep(0.1)
+
         hand_landmarker = landmarkers.Landmarker()
 
         calibration_time = 0.0
@@ -162,7 +183,7 @@ class VideoThread(QThread):
         not_touching = []
         click_distance = 0.0
         
-        ret, frame = cap.read()
+        ret, frame = self.cap.read()
         try:
             height, width, _ = frame.shape
         except AttributeError:
@@ -170,15 +191,13 @@ class VideoThread(QThread):
             sys.exit(1)
         
         text = None
-        font_scale = width / 640.0  # Scale based on camera resolution
-        thickness = max(2, int(font_scale * 2))
-        
+
         # Calculate text position dynamically
         text_x = int(width * 0.02)
         text_y = int(height * 0.9)
         
         while self._run_flag:
-            ret, frame = cap.read()
+            ret, frame = self.cap.read()
             if not ret:
                 continue
             frame = cv2.flip(frame, 1)
@@ -188,8 +207,11 @@ class VideoThread(QThread):
             except AttributeError:
                 print("No camera detected.")
                 sys.exit(1)
-            
-            hand_landmarker.detect_async(frame)
+
+            try:
+                hand_landmarker.detect_async(frame)
+            except ValueError:
+                pass
             
             try:
                 if hand_landmarker.result and hand_landmarker.result.hand_landmarks and len(hand_landmarker.result.hand_landmarks[0]) == 21:
@@ -239,15 +261,19 @@ class VideoThread(QThread):
                         print(f"Touching range: {touching_threshold:.4f}, Not touching range: {not_touching_threshold:.4f}")
                         
                         hand_landmarker.close()
-                        return click_distance
+                        self.click_distance = click_distance
+                        self.calibration_flag.set()
+                        return
                 else:
                     if text:
                         cv2.putText(frame, text, (text_x, text_y), cv2.FONT_HERSHEY_TRIPLEX, 1.0, (0, 255, 0), 4, cv2.LINE_AA)
                 
             except (AttributeError, IndexError):
-                last_hand_time = time.time()
-                
+                pass
+
             self.change_pixmap_signal.emit(frame)
     
         hand_landmarker.close()
-        return click_distance
+        self.click_distance = click_distance
+        self.calibration_flag.set()
+        return
