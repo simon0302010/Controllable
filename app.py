@@ -1,8 +1,18 @@
-from PyQt5 import QtGui
-from PyQt5.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout
-from PyQt5.QtGui import QPixmap
 import sys
-import cv2
+try:
+    import cv2
+    if hasattr(cv2, 'qt'):
+        print("ERROR: opencv-python or opencv-contrib-python is installed!")
+        print("This conflicts with PyQt5. Please run:")
+        print("  pip uninstall opencv-python opencv-contrib-python")
+        print("  pip install opencv-python-headless")
+        sys.exit(1)
+except ImportError:
+    pass
+
+from PyQt5 import QtGui
+from PyQt5.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QSizePolicy
+from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import pyqtSlot, Qt
 import numpy as np
 import video_feed
@@ -13,13 +23,23 @@ class App(QWidget):
         self.setWindowTitle("Controllable")
         self.display_width = 640
         self.display_height = 480
+        self.text_label = QLabel("Live Video feed")
+        self.text_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.text_label.setAlignment(Qt.AlignCenter)
         self.image_label = QLabel(self)
         self.image_label.resize(self.display_width, self.display_height)
-        self.textLabel = QLabel("Video feed")
+        
+        # placeholder for video feed
+        pixmap = QPixmap(self.display_width, self.display_height)
+        pixmap.fill(Qt.white)
+        painter = QtGui.QPainter(pixmap)
+        painter.drawText(pixmap.rect(), Qt.AlignCenter, "Loading video feed...")
+        painter.end()
+        self.image_label.setPixmap(pixmap)
         
         vbox = QVBoxLayout()
+        vbox.addWidget(self.text_label)
         vbox.addWidget(self.image_label)
-        vbox.addWidget(self.textLabel)
         self.setLayout(vbox)
         
         self.video_thread = video_feed.VideoThread()
