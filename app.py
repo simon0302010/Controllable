@@ -10,7 +10,7 @@ import video_feed
 class App(QWidget):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Controllable (Not calibrated)")
+        self.setWindowTitle("Controllable")
         self.display_width = 640
         self.display_height = 480
         self.image_label = QLabel(self)
