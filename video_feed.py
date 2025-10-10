@@ -30,6 +30,8 @@ class VideoThread(QThread):
         mouse_interpolator = MouseInterpolator()
         pynput_mouse = Controller()
         last_click = time.time()
+        click_since = None
+        action = None
         
         x_array = []
         y_array = []
@@ -55,8 +57,13 @@ class VideoThread(QThread):
                     [thumb_tip.x, thumb_tip.y],
                     [pointer_tip.x, pointer_tip.y]
                 )
+                
+                if distance <= click_distance and not click_since:
+                    click_since = time.time()
+                
                 if distance <= click_distance:
                     last_touch = time.time()
+                                        
                 if time.time() - last_touch < 0.075:
                     distance = click_distance
                 should_click = distance <= click_distance and (time.time() - last_click) > 0.5
