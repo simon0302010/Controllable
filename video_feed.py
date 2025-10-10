@@ -37,6 +37,10 @@ class VideoThread(QThread):
         y_array = []
 
         last_touch = time.time()
+        
+        last_hand_detected = time.time()
+        is_dragging = False
+        
         while self._run_flag:
             ret, frame = cap.read()
             if not ret:
@@ -50,6 +54,7 @@ class VideoThread(QThread):
             monitor_width, monitor_height = monitor.width, monitor.height
             hand_landmarker.detect_async(frame)
             if hand_landmarker.result and hand_landmarker.result.hand_landmarks and len(hand_landmarker.result.hand_landmarks[0]) == 21:
+                last_hand_detected = time.time()
                 pointer_tip = hand_landmarker.result.hand_landmarks[0][8]
                 thumb_tip = hand_landmarker.result.hand_landmarks[0][4]
                                 
@@ -60,11 +65,27 @@ class VideoThread(QThread):
                 
                 if distance <= click_distance and not click_since:
                     click_since = time.time()
-                
+
                 if distance <= click_distance:
                     last_touch = time.time()
-                                        
-                if time.time() - last_touch < 0.075:
+                    if click_since and time.time() - click_since >= 0.2:
+                        action = "drag"
+                        is_dragging = True
+                    else:
+                        action = "hold"
+                elif click_since:
+                    if time.time() - click_since < 0.2:
+                        action = "click"
+                    else:
+                        action = None
+                    click_since = None
+                    is_dragging = False
+                else:
+                    action = None
+
+                print(action)
+                
+                if time.time() - last_touch < 0.1:
                     distance = click_distance
                 should_click = distance <= click_distance and (time.time() - last_click) > 0.5
                 
@@ -107,15 +128,20 @@ class VideoThread(QThread):
                     
                 mouse_interpolator.move_to(monitor_x, monitor_y)
                 try:
-                    if should_click:
-                        #pynput_mouse.click(Button.left, 1)
+                    if action == "click" and should_click:
+                        pynput_mouse.click(Button.left, 1)
                         last_click = time.time()
-                    if distance <= click_distance:
+                    elif is_dragging or action == "drag":
                         pynput_mouse.press(Button.left)
                     else:
                         pynput_mouse.release(Button.left)
                 except RuntimeError:
                     pass
+                
+            else:
+                if time.time() - last_hand_detected > 0.3:
+                    is_dragging = False
+                    action = None
             
             self.change_pixmap_signal.emit(frame)
         
