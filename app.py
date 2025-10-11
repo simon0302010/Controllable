@@ -61,19 +61,50 @@ class App(QWidget):
 
         self.video_thread = video_feed.VideoThread()
         self.video_thread.change_pixmap_signal.connect(self.update_image)
+        self.video_thread.change_text_signal.connect(self.change_text)
+        self.video_thread.calibration_completed_signal.connect(self.calibration_completed)
         self.video_thread.start()
+
+        self.calibrated = False
 
     def closeEvent(self, event) -> None:
         self.video_thread.stop()
         event.accept()
 
     def on_calibrate(self):
+        self.push_button.setDisabled(True)
         self.video_thread.trigger_calibration.emit()
 
     @pyqtSlot(np.ndarray)
     def update_image(self, cv_img):
         qt_img = self.convert_cv_qt(cv_img)
         self.image_label.setPixmap(qt_img)
+
+    @pyqtSlot(str)
+    def change_text(self, new_text):
+        self.info_text.setText(new_text)
+
+    @pyqtSlot()
+    def calibration_completed(self):
+        self.calibrated = True
+        self.push_button.setText("Start")
+        self.push_button.setDisabled(False)
+        self.push_button.clicked.disconnect()
+        self.push_button.clicked.connect(self.begin)
+
+    def begin(self):
+        self.video_thread.began_processing = True
+        self.info_text.setText("Running. Press the stop button to stop processing.")
+        self.push_button.setText("Stop")
+        self.push_button.clicked.disconnect()
+        self.push_button.clicked.connect(self.stop)
+
+    def stop(self):
+        self.video_thread.began_processing = False
+        self.info_text.setText("Stopped. Press the start button to start processing again.")
+        self.push_button.setText("Start")
+        self.push_button.clicked.disconnect()
+        self.push_button.clicked.connect(self.begin)
 
     def convert_cv_qt(self, cv_img):
         rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
