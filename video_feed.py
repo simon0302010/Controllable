@@ -31,11 +31,12 @@ class VideoThread(QThread):
         self.calibrating = False
         self.began_processing = False
         self.click_distance = None
+        self.enable_dragging = False
         self.cap = cv2.VideoCapture(0)
         self.calibration_flag = threading.Event()
 
     def run(self):
-        while not self.calibrating:
+        while not self.calibrating and self._run_flag:
             ret, frame = self.cap.read()
             if not ret:
                 continue
@@ -43,7 +44,8 @@ class VideoThread(QThread):
             self.change_pixmap_signal.emit(frame)
 
         # waits until calibration is finished
-        self.calibration_flag.wait()
+        while self._run_flag and not self.calibration_flag.is_set():
+            self.calibration_flag.wait(timeout=0.1)
 
         monitor = get_monitors()[0]
 
@@ -104,8 +106,6 @@ class VideoThread(QThread):
                 else:
                     action = None
 
-                print(action)
-                
                 if time.time() - last_touch < 0.1:
                     distance = self.click_distance
                 should_click = distance <= self.click_distance and (time.time() - last_click) > 0.5
@@ -150,13 +150,18 @@ class VideoThread(QThread):
                 if self.began_processing:
                     mouse_interpolator.move_to(monitor_x, monitor_y)
                     try:
-                        if action == "click" and should_click:
-                            pynput_mouse.click(Button.left, 1)
-                            last_click = time.time()
-                        elif is_dragging or action == "drag":
-                            pynput_mouse.press(Button.left)
+                        if self.enable_dragging:
+                            if action == "click" and should_click:
+                                pynput_mouse.click(Button.left, 1)
+                                last_click = time.time()
+                            elif is_dragging or action == "drag":
+                                pynput_mouse.press(Button.left)
+                            else:
+                                pynput_mouse.release(Button.left)
                         else:
-                            pynput_mouse.release(Button.left)
+                            if should_click:
+                                pynput_mouse.click(Button.left, 1)
+                                last_click = time.time()
                     except RuntimeError:
                         pass
                 
@@ -174,6 +179,7 @@ class VideoThread(QThread):
         self.calibrating = False
         if getattr(self, 'calibration_thread', False) and self.calibration_thread.is_alive():
             self.calibration_thread.join()
+        self.cap.release()
         self.wait()
 
     @pyqtSlot()
@@ -195,13 +201,7 @@ class VideoThread(QThread):
         except AttributeError:
             print("No camera detected.")
             sys.exit(1)
-        
-        text = None
 
-        # Calculate text position dynamically
-        text_x = int(width * 0.02)
-        text_y = int(height * 0.9)
-        
         while self._run_flag:
             ret, frame = self.cap.read()
             if not ret:

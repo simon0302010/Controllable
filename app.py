@@ -13,7 +13,7 @@ except ImportError:
     pass
 
 from PyQt5 import QtGui
-from PyQt5.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QSizePolicy, QPushButton
+from PyQt5.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QSizePolicy, QPushButton, QCheckBox
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import pyqtSlot, Qt
 import numpy as np
@@ -44,6 +44,16 @@ class App(QWidget):
         self.image_label = QLabel(self)
         self.image_label.resize(self.display_width, self.display_height)
 
+        # settings
+        settings_header = QLabel("Settings")
+        settings_header.setFont(QFont("", 14))
+        settings_header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        settings_header.setAlignment(Qt.AlignCenter)
+
+        self.enable_dragging_box = QCheckBox("Enable support for dragging")
+        self.enable_dragging_box.setToolTip("Enable support for dragging (More prone to accidental inputs)")
+        self.enable_dragging_box.stateChanged.connect(self.on_dragging_changed)
+
         # placeholder for video feed
         pixmap = QPixmap(self.display_width, self.display_height)
         pixmap.fill(Qt.white)
@@ -57,6 +67,8 @@ class App(QWidget):
         vbox.addWidget(self.info_text)
         vbox.addWidget(self.push_button, alignment=Qt.AlignCenter)
         vbox.addWidget(self.image_label)
+        vbox.addWidget(settings_header)
+        vbox.addWidget(self.enable_dragging_box, alignment=Qt.AlignCenter)
         self.setLayout(vbox)
 
         self.video_thread = video_feed.VideoThread()
@@ -94,7 +106,7 @@ class App(QWidget):
 
     def begin(self):
         self.video_thread.began_processing = True
-        self.info_text.setText("Running. Press the stop button to stop processing.")
+        self.info_text.setText("Running. Tap your index finger and thumb to click. Dragging can be enabled in the settings.")
         self.push_button.setText("Stop")
         self.push_button.clicked.disconnect()
         self.push_button.clicked.connect(self.stop)
@@ -114,6 +126,8 @@ class App(QWidget):
         p = convert_to_qt_format.scaled(self.display_width, self.display_height, Qt.KeepAspectRatio)
         return QPixmap.fromImage(p)
 
+    def on_dragging_changed(self, state):
+        self.video_thread.enable_dragging = (state == Qt.Checked)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
