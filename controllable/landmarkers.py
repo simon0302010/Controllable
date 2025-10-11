@@ -13,7 +13,7 @@ class Landmarker:
             self.result = result
 
         base_options = mp.tasks.BaseOptions(
-            model_asset_path="hand_landmarker.task",
+            model_asset_path="../hand_landmarker.task",
             # delegate=mp.tasks.BaseOptions.Delegate.GPU # Enable when using a GPU
         )
 

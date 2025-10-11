@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QSizePol
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import pyqtSlot, Qt
 import numpy as np
-import video_feed
+from . import video_feed
 
 
 class App(QWidget):
@@ -129,8 +129,11 @@ class App(QWidget):
     def on_dragging_changed(self, state):
         self.video_thread.enable_dragging = (state == Qt.Checked)
 
-if __name__ == "__main__":
+def main():
     app = QApplication(sys.argv)
     a = App()
     a.show()
     sys.exit(app.exec_())
+
+if __name__ == "__main__":
+    main()

@@ -1,7 +1,0 @@
-mediapipe>=0.10.5
-screeninfo
-pyautogui
-loess
-PyQt5
-Pillow
-pynput

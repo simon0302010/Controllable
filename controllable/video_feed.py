@@ -9,8 +9,8 @@ from PyQt5.QtCore import pyqtSignal, QThread, pyqtSlot
 from pynput.mouse import Button, Controller
 from screeninfo import get_monitors
 
-import landmarkers
-from mouse_interpolator import MouseInterpolator
+from . import landmarkers
+from .mouse_interpolator import MouseInterpolator
 
 
 def map_coordinate(coord, old_min=0.2, old_max=0.8):
