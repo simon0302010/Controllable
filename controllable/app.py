@@ -16,9 +16,15 @@ from PyQt5 import QtGui
 from PyQt5.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout, QSizePolicy, QPushButton, QCheckBox
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import pyqtSlot, Qt
+from tqdm import tqdm
 import numpy as np
+import requests
+import os
+
 from . import video_feed
 
+
+MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task"
 
 class App(QWidget):
     def __init__(self) -> None:
@@ -79,6 +85,10 @@ class App(QWidget):
 
         self.calibrated = False
 
+        # download model
+        if not os.path.exists("hand_landmarker.task"):
+            self.download_model()
+
     def closeEvent(self, event) -> None:
         self.video_thread.stop()
         event.accept()
@@ -128,6 +138,21 @@ class App(QWidget):
 
     def on_dragging_changed(self, state):
         self.video_thread.enable_dragging = (state == Qt.Checked)
+
+    def download_model(self):
+        fname = MODEL_URL.split("/")[-1]
+        resp = requests.get(MODEL_URL, stream=True)
+        total = int(resp.headers.get('content-length', 0))
+        with open(fname, 'wb') as file, tqdm(
+                desc=fname,
+                total=total,
+                unit='iB',
+                unit_scale=True,
+                unit_divisor=1024,
+        ) as bar:
+            for data in resp.iter_content(chunk_size=1024):
+                size = file.write(data)
+                bar.update(size)
 
 def main():
     app = QApplication(sys.argv)
