@@ -54,7 +54,7 @@ A program to control your computer through its camera.
 
     -   **Mouse movement:** The position of your index finger controls the cursor.
     -   **Clicking:** Tap your index finger and thumb together to perform a click.
-    -   **Dragging:** You can enable support for dragging in the settings (More prone to accidental inputs)
+    -   **Dragging:** Hold your index finger and thumb together to drag (has to be enabled in settings)
 
 4.  **Stop:**
 

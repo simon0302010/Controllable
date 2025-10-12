@@ -5,6 +5,8 @@ import threading
 
 import cv2
 import numpy as np
+import mediapipe as mp
+from mediapipe.framework.formats import landmark_pb2
 from PyQt5.QtCore import pyqtSignal, QThread, pyqtSlot
 from pynput.mouse import Button, Controller
 from screeninfo import get_monitors
@@ -17,6 +19,33 @@ def map_coordinate(coord, old_min=0.2, old_max=0.8):
     coord = max(old_min, min(old_max, coord))
     return (coord - old_min) / (old_max - old_min)
 
+def draw_landmarks_on_image(rgb_image, detection_result: mp.tasks.vision.HandLandmarkerResult):
+    """Courtesy of https://github.com/googlesamples/mediapipe/blob/main/examples/hand_landmarker/python/hand_landmarker.ipynb"""
+    try:
+        if detection_result.hand_landmarks == []:
+            return rgb_image
+        else:
+            hand_landmarks_list = detection_result.hand_landmarks
+            annotated_image = np.copy(rgb_image)
+
+            # Loop through the detected hands to visualize.
+            for idx in range(len(hand_landmarks_list)):
+                hand_landmarks = hand_landmarks_list[idx]
+
+                # Draw the hand landmarks.
+                hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
+                hand_landmarks_proto.landmark.extend([
+                    landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in
+                    hand_landmarks])
+                mp.solutions.drawing_utils.draw_landmarks(
+                    annotated_image,
+                    hand_landmarks_proto,
+                    mp.solutions.hands.HAND_CONNECTIONS,
+                    mp.solutions.drawing_styles.get_default_hand_landmarks_style(),
+                    mp.solutions.drawing_styles.get_default_hand_connections_style())
+            return annotated_image
+    except:
+        return rgb_image
 
 class VideoThread(QThread):
     change_pixmap_signal = pyqtSignal(np.ndarray)
@@ -32,6 +61,7 @@ class VideoThread(QThread):
         self.began_processing = False
         self.click_distance = None
         self.enable_dragging = False
+        self.only_hand = False
         self.cap = cv2.VideoCapture(0)
         self.calibration_flag = threading.Event()
 
@@ -41,7 +71,11 @@ class VideoThread(QThread):
             if not ret:
                 continue
             frame = cv2.flip(frame, 1)
-            self.change_pixmap_signal.emit(frame)
+
+            if self.only_hand:
+                self.change_pixmap_signal.emit(np.zeros((480, 640, 3), dtype=np.uint8))
+            else:
+                self.change_pixmap_signal.emit(frame)
 
         # waits until calibration is finished
         while self._run_flag and not self.calibration_flag.is_set():
@@ -66,6 +100,7 @@ class VideoThread(QThread):
         
         while self._run_flag:
             ret, frame = self.cap.read()
+
             if not ret:
                 continue
             frame = cv2.flip(frame, 1)
@@ -124,6 +159,12 @@ class VideoThread(QThread):
                 monitor_y = int(mapped_y * monitor_height)
                 x_array.append(monitor_x)
                 y_array.append(monitor_y)
+
+                if self.only_hand:
+                    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+
+                frame = draw_landmarks_on_image(frame, hand_landmarker.result)
+
                 cv2.circle(frame, (pixel_x, pixel_y), 5, color, -1)
                 
                 thumb_pixel_x = int(thumb_tip.x * width)
@@ -164,13 +205,17 @@ class VideoThread(QThread):
                                 last_click = time.time()
                     except RuntimeError:
                         pass
-                
+
+                self.change_pixmap_signal.emit(frame)
             else:
                 if time.time() - last_hand_detected > 0.3:
                     is_dragging = False
                     action = None
-            
-            self.change_pixmap_signal.emit(frame)
+
+                if self.only_hand:
+                    self.change_pixmap_signal.emit(np.zeros((480, 640, 3), dtype=np.uint8))
+                else:
+                    self.change_pixmap_signal.emit(frame)
         
         hand_landmarker.close()
 
@@ -223,7 +268,12 @@ class VideoThread(QThread):
                 if hand_landmarker.result and hand_landmarker.result.hand_landmarks and len(hand_landmarker.result.hand_landmarks[0]) == 21:
                     pointer_tip = hand_landmarker.result.hand_landmarks[0][8]
                     thumb_tip = hand_landmarker.result.hand_landmarks[0][4]
-                                
+
+                    if self.only_hand:
+                        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+
+                    frame = draw_landmarks_on_image(frame, hand_landmarker.result)
+
                     distance = math.dist(
                         [thumb_tip.x, thumb_tip.y],
                         [pointer_tip.x, pointer_tip.y]

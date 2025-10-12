@@ -60,6 +60,10 @@ class App(QWidget):
         self.enable_dragging_box.setToolTip("Enable support for dragging (More prone to accidental inputs)")
         self.enable_dragging_box.stateChanged.connect(self.on_dragging_changed)
 
+        self.only_hand = QCheckBox("Only show hand landmarkers")
+        self.only_hand.setToolTip("Only shows the hand landmarkers in the video feed. Useful for demos.")
+        self.only_hand.stateChanged.connect(self.on_only_hand_changed)
+
         # placeholder for video feed
         pixmap = QPixmap(self.display_width, self.display_height)
         pixmap.fill(Qt.white)
@@ -75,6 +79,7 @@ class App(QWidget):
         vbox.addWidget(self.image_label)
         vbox.addWidget(settings_header)
         vbox.addWidget(self.enable_dragging_box, alignment=Qt.AlignCenter)
+        vbox.addWidget(self.only_hand, alignment=Qt.AlignCenter)
         self.setLayout(vbox)
 
         self.video_thread = video_feed.VideoThread()
@@ -138,6 +143,9 @@ class App(QWidget):
 
     def on_dragging_changed(self, state):
         self.video_thread.enable_dragging = (state == Qt.Checked)
+
+    def on_only_hand_changed(self, state):
+        self.video_thread.only_hand = (state == Qt.Checked)
 
     def download_model(self):
         fname = MODEL_URL.split("/")[-1]
