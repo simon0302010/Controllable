@@ -318,14 +318,20 @@ class VideoThread(QThread):
                         self.calibration_flag.set()
                         self.calibration_completed_signal.emit()
                         return
+
+                    self.change_pixmap_signal.emit(frame)
                 else:
                     self.change_text_signal.emit("Couldn't detect hand.")
+                    if self.only_hand:
+                        self.change_pixmap_signal.emit(np.zeros((480, 640, 3), dtype=np.uint8))
+                    else:
+                        self.change_pixmap_signal.emit(frame)
+
 
             except (AttributeError, IndexError):
                 pass
 
-            self.change_pixmap_signal.emit(frame)
-    
+
         hand_landmarker.close()
         self.click_distance = click_distance
         self.calibration_flag.set()

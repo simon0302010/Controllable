@@ -19,6 +19,7 @@ from PyQt5.QtCore import pyqtSlot, Qt
 from tqdm import tqdm
 import numpy as np
 import requests
+import sys
 import os
 
 from . import video_feed
@@ -87,6 +88,10 @@ class App(QWidget):
         self.video_thread.change_text_signal.connect(self.change_text)
         self.video_thread.calibration_completed_signal.connect(self.calibration_completed)
         self.video_thread.start()
+
+        if "--only-hand" in sys.argv:
+            self.only_hand.setChecked(True)
+            self.video_thread.only_hand = True
 
         self.calibrated = False
 
