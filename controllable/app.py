@@ -6,7 +6,8 @@ try:
     if hasattr(cv2, 'qt'):
         print("ERROR: opencv-python or opencv-contrib-python is installed!")
         print("This conflicts with PyQt5. Please run:")
-        print("  pip uninstall opencv-python opencv-contrib-python")
+        print("  pip uninstall -y opencv-contrib-python opencv-python-headless")
+        print("  pip cache purge")
         print("  pip install opencv-python-headless")
         sys.exit(1)
 except ImportError:

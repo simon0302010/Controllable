@@ -3,7 +3,14 @@ import sys
 import time
 import threading
 
-import cv2
+try:
+    import cv2
+except ImportError:
+    print("Please run:")
+    print("  pip uninstall -y opencv-contrib-python opencv-python-headless")
+    print("  pip cache purge")
+    print("  pip install opencv-python-headless")
+    sys.exit(1)
 import numpy as np
 import mediapipe as mp
 from mediapipe.framework.formats import landmark_pb2

@@ -27,8 +27,8 @@ A program to control your computer through its camera.
     Install the required packages using `pip`:
 
     ```bash
-    pip install -e .
-    pip uninstall -y opencv-contrib-python
+    pip install -e . # or pip install controllable-py
+    pip uninstall -y opencv-contrib-python opencv-python-headless
     pip cache purge
     pip install opencv-python-headless
     ```
