@@ -2,6 +2,10 @@
 
 A program to control your computer through its camera.
 
+## Demo
+
+https://github.com/user-attachments/assets/beb703c2-fc6a-499f-8027-e6053bb562d0
+
 ## Requirements
 - Python 3.9 - 3.12
 - A camera connected to your computer
