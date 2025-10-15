@@ -1,6 +1,6 @@
 # Controllable
 
-A program to control your computer through its camera.
+A program to control your computer through its camera like magic ✨🪄.
 
 ## Demo
 
